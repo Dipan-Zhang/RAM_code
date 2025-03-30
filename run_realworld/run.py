@@ -20,8 +20,36 @@ import shutil
 import random
 import open3d as o3d
 
+TASK_LIST = [
+    'pickup_the_mug',
+    'pickup_the_cup',
+    'pickup_the_bottle',
+    'pickup_the_bowl',
+    'pickup_the_lid',
+
+    'open_the_drawer',
+    'close_the_drawer',
+    'close_the_cabinet',
+    'open_the_cabinet'
+    'open_the_microwave',
+    'close_the_microwave',
+]
 def backup(args, cfgs):
     shutil.copyfile(f"run_realworld/{args.config}", f"{cfgs['SAVE_ROOT']}/config.yaml")
+
+def underscore_string_to_camel_case(string):
+    """
+    Convert a string from underscore format to camel case format.
+    For example, 'my_variable_name' becomes 'MyVariableName'.
+    """
+    components = string.split('_')
+    return ''.join(x.title() for x in components) 
+
+def reverse_object_action(task_name):
+    "bottle_open -> open_bottle"
+    obj = task_name.split('_')[0]
+    action = task_name.split('_')[1:]
+    return f"{obj}_{'_'.join(action[::-1])}"
 
 def main(args):
     random.seed(args.seed)
@@ -30,15 +58,21 @@ def main(args):
     torch.cuda.manual_seed(args.seed)
     
     cfgs = read_yaml_config(f"run_realworld/{args.config}")
-    os.makedirs(cfgs['SAVE_ROOT'], exist_ok=True)
-    backup(args, cfgs)
     torch.set_printoptions(precision=4, sci_mode=False)
+    task_name = args.config.split('/')[-1].split('.')[0]
             
     instruction = cfgs['instruction']
     obj = cfgs['obj']
     prompt = cfgs['prompt']
     data_source = cfgs.get("DATA_SOURCE", "droid")
-    save_root = cfgs['SAVE_ROOT']
+
+    # save_root = cfgs['SAVE_ROOT']
+    RLbench_task_name = underscore_string_to_camel_case(task_name)
+    dataset_path = f'../RLBench/outputs/{RLbench_task_name}/'
+    save_root = f'../RLBench/outputs/{RLbench_task_name}/RAM/'
+    cfgs['SAVE_ROOT'] = save_root
+    os.makedirs(save_root, exist_ok=True)
+    backup(args, cfgs)
     
     grounded_dino_model, sam_predictor = prepare_gsam_model(device="cuda")
     gym = MiniEnv(cfgs, grounded_dino_model, sam_predictor)
@@ -52,9 +86,10 @@ def main(args):
         data_source=data_source,
     )
     
-    pcd = o3d.io.read_point_cloud("run_realworld/real_data/input/pcd.ply")
-    rgb = Image.open("run_realworld/real_data/input/rgb.png")
-        
+    # input_dir = f"run_realworld/real_data/input/{obj}"
+    pcd = o3d.io.read_point_cloud(os.path.join(dataset_path, "pcd.ply"))
+    rgb = Image.open(os.path.join(dataset_path, "rgb.png"))
+
     tgt_img_PIL = rgb
     tgt_img_PIL.save(f"{save_root}/tgt_img.png")
     rgb = np.array(rgb)
@@ -78,14 +113,14 @@ def main(args):
     else:
         # use retrieval to get src_path (or src image) and src trajectory in 2d space
         _, top1_retrieved_data_dict = subset_retrieve_pipeline.retrieve(instruction, np.array(tgt_img_PIL))
-        traj = top1_retrieved_data_dict['traj']
+        traj = top1_retrieved_data_dict['traj'] # 2D
         src_img_np = top1_retrieved_data_dict['masked_img']
         src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
     ####################### SOURCE DEMONSTRATION ########################
 
     # scale cropped_traj to IMG_SIZE
     src_pos_list = []
-    for xy in traj:
+    for xy in traj: # xy: (x, y)
         src_pos_list.append((xy[0] * IMG_SIZE / src_img_PIL.size[0], xy[1] * IMG_SIZE / src_img_PIL.size[1]))
     
     while True:
@@ -99,6 +134,7 @@ def main(args):
     # contact point + post-contact direction
     ret_dict = gym.lift_affordance(rgb, pcd, contact_point, post_contact_dir)
     
+    np.savez(f"{save_root}/RAM_ret_dict.npz", **ret_dict)
     print("3D Affordance:\n", ret_dict)
     
     print("====== DONE ======")
