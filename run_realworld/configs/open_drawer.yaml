@@ -10,9 +10,8 @@ obj: "drawer"
 prompt: "a photo of a drawer"
 
 # cam
-cam_w: 640
-cam_h: 360
-
+cam_w: 512
+cam_h: 512
 # GroundedSAM
 box_threshold: 0.3
 text_threshold: 0.25
