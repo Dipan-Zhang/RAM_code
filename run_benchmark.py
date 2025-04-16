@@ -61,13 +61,15 @@ if __name__ == "__main__":
     else:
         TASKS = [args.task]
 
+    if args.same_trial_name:
+        trial_name = f'trial_{get_time()}'
+
     for task in tqdm(TASKS):
         # task_env, task_name = task.split("@")
         task_cfg_file = os.path.join(CFGS_DIR, f'{task}.yaml')
 
         cmd = f"python run_realworld/run.py --config configs/{task}.yaml --retrieve --num_trial {args.num_trial}"
         if args.same_trial_name:
-            trial_name = f'trial_{get_time()}'
             cmd += f" --save_dir {trial_name}"
         os.system(cmd)
         print("=======================================================")
