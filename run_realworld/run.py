@@ -64,7 +64,8 @@ def main(args):
     if args.save_dir == '':
         SAVE_ROOT = os.path.join('../RLBench/outputs', RLbench_task_name, 'RAM', f'trial_{get_time()}')
     else:
-        SAVE_ROOT = args.save_dir
+        # SAVE_ROOT = args.save_dir
+        SAVE_ROOT = os.path.join('../RLBench/outputs', RLbench_task_name, 'RAM', args.save_dir)
     cfgs['SAVE_ROOT'] = SAVE_ROOT
     os.makedirs(SAVE_ROOT, exist_ok=True)
     backup(args, cfgs)
@@ -75,6 +76,7 @@ def main(args):
     dataset_path = f'../RLBench/outputs/{RLbench_task_name}/obs/'
     camera_names = os.listdir(dataset_path)
     for camera_name in camera_names:
+        results_per_camera = {}
         dataset_path_cam = os.path.join(dataset_path, camera_name)
         for trial in tqdm.tqdm(range(args.num_trial), desc=f"{RLbench_task_name, camera_name}"):
             SAVE_ROOT_TRIAL = os.path.join(SAVE_ROOT, camera_name, f"trial_{trial}")
@@ -119,7 +121,7 @@ def main(args):
                 traj = top1_retrieved_data_dict['traj'] # 2D
                 src_img_np = top1_retrieved_data_dict['masked_img']
                 src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
-            ####################### SOURCE DEMONSTRATION ########################
+                src_img_PIL.save(f"{SAVE_ROOT_TRIAL}/src_img.png")
 
             # scale cropped_traj to IMG_SIZE
             src_pos_list = []
@@ -139,9 +141,9 @@ def main(args):
             
             np.savez(f"{SAVE_ROOT_TRIAL}/RAM_ret_dict_{trial}.npz", **ret_dict)
             print("3D Affordance:\n", ret_dict)
-            results_all[trial] = ret_dict
+            results_per_camera[trial] = ret_dict
             del subset_retrieve_pipeline
-    
+        results_all[camera_name] = results_per_camera
     # save all the results
     with open(os.path.join(SAVE_ROOT, f"retrieved_motion_all.pkl"), 'wb') as f:
         pickle.dump(results_all, f)
