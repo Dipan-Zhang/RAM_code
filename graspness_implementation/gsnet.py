@@ -16,6 +16,7 @@ from graspness_implementation.models.graspnet import GraspNet, pred_decode
 from graspness_implementation.dataset.graspnet_dataset import minkowski_collate_fn
 from graspness_implementation.utils.collision_detector import ModelFreeCollisionDetector
 from scipy.spatial.transform import Rotation as R
+import ipdb
 
 class GSNet():
     def __init__(self, cfgs):
@@ -47,6 +48,7 @@ class GSNet():
         # Forward pass
         with torch.no_grad():
             end_points = self.net(batch_data)
+            print("===============end_points", end_points['xyz_graspable'][0].shape)
             grasp_preds = pred_decode(end_points)
 
         preds = grasp_preds[0].detach().cpu().numpy()

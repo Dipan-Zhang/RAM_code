@@ -17,6 +17,7 @@ from graspness_implementation.gsnet import GSNet, grasp_to_pointcloud, vis_save_
 import argparse
 import traceback
 from matplotlib import pyplot as plt
+import ipdb; 
 
 class MiniEnv():
     def __init__(
@@ -76,6 +77,7 @@ class MiniEnv():
         '''GSNet'''
         # need to preprocess point cloud
         pcs_input = points.copy()
+        print('=================input pcs shape:', pcs_input.shape, '===================')
         pcs_input[...,2] = -pcs_input[...,2]
         gg = self.inference_gsnet(pcs_input, nms=False)
         # print(gg[0])
@@ -130,7 +132,7 @@ class MiniEnv():
         post_contact_dirs_2d, post_contact_dirs_3d = None, None
         partial_points = np.array(pcd.points)
         partial_colors = np.array(pcd.colors)
-        position = partial_points[pixel[1]*self.cam_w + pixel[0]]
+        position = partial_points[pixel[1]*self.cam_w + pixel[0]] # contact point
         
         # visualization
         # ds_points, _, _ = get_downsampled_pc(partial_points, None, 20000)
@@ -144,7 +146,7 @@ class MiniEnv():
         save_pcd.colors.append(np.array([0, 1, 0]))
         # save to ply
         o3d.io.write_point_cloud(f"{self.cfgs['SAVE_ROOT']}/grasp_point.ply", save_pcd)
-        
+  
         MAX_ATTEMPTS = 20 # in case there is no good grasp at one time
         max_dis = 0.05
         best_grasp = None
@@ -188,10 +190,11 @@ class MiniEnv():
             print('==>> use GSNet for closest grasp')
         n_clusters = 5
         vis_save_grasp(cropped_points, best_grasp, f"{self.cfgs['SAVE_ROOT']}/best_grasp.ply")
+
         clustered_centers = cluster_normals(cropped_normals, n_clusters=n_clusters) # (2*n_clusters, 3)
         visualize_point_directions(cropped_points, position, clustered_centers, self.cfgs['SAVE_ROOT'])
         post_contact_dirs_3d = clustered_centers
-        post_contact_dirs_2d = self.project_normals(rgb, pixel, clustered_centers)
+        post_contact_dirs_2d = self.project_normals(rgb, pixel, clustered_centers) # project 3D normals into 2D space
         grasp_array = best_grasp.grasp_array.tolist()
         
         # post-grasp
@@ -232,6 +235,9 @@ class MiniEnv():
             dx, dy = normals_2d_direction_normalized[i]
             cv2.arrowedLine(img_, (x, y), (x + int(dx * 50), y + int(dy * 50)), (0, 0, 255*i/normals_2d_direction_normalized.shape[0]), 2)
             plt.arrow(x, y, dx*100, dy*100, color=(0, 0, i/normals_2d_direction_normalized.shape[0]), linewidth=2.5, head_width=12)
+            plt.text(x + dx*(120+3*i), y + dy*(120+3*i), str(i), color='black', fontsize=8, 
+                     horizontalalignment='center', verticalalignment='center',
+                     bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1))
         # revert to RGB
         plt.axis('off')
         plt.tight_layout()
