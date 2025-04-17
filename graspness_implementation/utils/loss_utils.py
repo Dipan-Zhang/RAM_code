@@ -10,7 +10,7 @@ GRASPNESS_THRESHOLD = 0.1
 NUM_VIEW = 300
 NUM_ANGLE = 12
 NUM_DEPTH = 4
-M_POINT = 4096
+M_POINT = 1024
 
 
 def transform_point_cloud(cloud, transform, format='4x4'):
