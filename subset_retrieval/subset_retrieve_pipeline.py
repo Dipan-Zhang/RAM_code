@@ -272,6 +272,7 @@ class SubsetRetrievePipeline:
         retrieved_data_dict = self.load_retrieved_task_from_pkl(retrieved_task) # img, traj, masked_img, mask
 
         if log: print("<3> Segment out the object from our observation")
+        # get masked tgt object
         query_frame, query_mask = self.segment_objects([current_obs], current_task)
         retrieved_data_dict['query_img'] = current_obs
         retrieved_data_dict['query_mask'] = query_mask
@@ -285,6 +286,7 @@ class SubsetRetrievePipeline:
             retrieved_data_dict['traj'] = trajs
 
         if log: print("<4> Semantic filtering...")
+        # sort retrieved data by visual and text similarity
         sorted_retrieved_data_dict = self.clip_filtering(retrieved_data_dict, obj_prompt)
 
         if log: print("<5> Geometrical retrieval...")

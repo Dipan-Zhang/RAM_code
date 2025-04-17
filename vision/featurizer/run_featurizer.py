@@ -58,6 +58,7 @@ def extract_ft(img: Image.Image, prompt=None, ftype='sd'):
 
 def match_fts(src_ft, tgt_ft, pos, save_root=None):
     num_channel = src_ft.size(1)
+    # upsample feat to the IMG size
     src_ft = nn.Upsample(size=(IMG_SIZE, IMG_SIZE), mode='bilinear')(src_ft)
     tgt_ft = nn.Upsample(size=(IMG_SIZE, IMG_SIZE), mode='bilinear')(tgt_ft)
     x, y = pos[0], pos[1]
@@ -156,31 +157,40 @@ def choose_from_augmentation(augmented_img_PILs, augmented_pos_lists, tgt_img_PI
         
 
 def transfer_affordance(src_img_PIL, tgt_img_PIL, prompt, src_pos_list, save_root=None, ftype='sd'):
+    # src_pos_list: scaled 2D trajectory 
     ori_cos_map = None
     max_xy_list = []
     src_ft = extract_ft(src_img_PIL, prompt=prompt, ftype=ftype)
     tgt_ft = extract_ft(tgt_img_PIL, prompt=prompt, ftype=ftype)
-    match_fts(src_ft, tgt_ft, src_pos_list[0], save_root)
+    match_fts(src_ft, tgt_ft, src_pos_list[0], save_root) # get the heat map between src pt and target, but not used??
+    # get correspondence for each point
     for src_pos in src_pos_list:
         cos_map = match_fts(src_ft, tgt_ft, src_pos)
         if ori_cos_map is None:
             ori_cos_map = cos_map
         max_xy, _ = sample_highest(cos_map)
         max_xy = (max_xy[0] * tgt_img_PIL.size[0] / IMG_SIZE, max_xy[1] * tgt_img_PIL.size[1] / IMG_SIZE)
-        max_xy_list.append(max_xy)
+        max_xy_list.append(max_xy) # highest correspondence point in target image
     src_pos_list_np = np.array(src_pos_list)
     max_xy_list_np = np.array(max_xy_list)
+
+    # fit a line of source and target points
     src_pos_inliers, src_best_line = fit_linear_ransac(src_pos_list_np, threshold=5, min_samples=10)
     max_xy_inliers, tgt_best_line = fit_linear_ransac(max_xy_list_np, threshold=5, min_samples=10)
     # src_best_line and tgt_best_line should be in the same direction (under similar viewpoints)
+
+    # make sure similar dir, bc line direction is arbitrary
     if np.dot(src_best_line, tgt_best_line) < 0:
         tgt_best_line = -tgt_best_line
     contact_point = (int(max_xy_list[0][0]), int(max_xy_list[0][1]))
     if save_root:
         print('src & tgt best lines:\n', src_best_line, tgt_best_line)
+        # fitted contact pt
         visualize_max_xy(save_root, src_pos_list[0], contact_point, src_img_PIL, tgt_img_PIL, heatmap=ori_cos_map[0])
+        # fitted direction
         visualize_max_xy_list(save_root, src_pos_list_np, max_xy_list_np, src_img_PIL, tgt_img_PIL, filename='max_xy_list_all')
-        visualize_max_xy_list(save_root, src_pos_inliers, max_xy_inliers, src_img_PIL, tgt_img_PIL)
+        visualize_max_xy_list(save_root, src_pos_inliers, max_xy_inliers, src_img_PIL, tgt_img_PIL) # fitted line
+        # fitted final result/ the vector
         visualize_max_xy_linear(save_root, src_pos_list[0], src_best_line, contact_point, tgt_best_line, src_img_PIL, tgt_img_PIL)
     return contact_point, tgt_best_line
 
