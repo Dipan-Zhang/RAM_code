@@ -421,4 +421,48 @@ def visualize_point_directions(points, point, clustered_normals, save_root=None,
             o3d.io.write_point_cloud(f"{save_root}/{filename}.ply", pcd)
         else:
             o3d.io.write_point_cloud(f"{save_root}/clustered_normals.ply", pcd)
-            
+
+def backproject(depth, intrinsics, instance_mask, NOCS_convention=True):
+    """backproject depth image to 3d points
+    Args:
+        depth: [h, w]
+        intrinsics: [3, 3]
+        instance_mask: [h, w]
+    return: pts: [num_pixel, 3], idxs: [2, num_pixel]
+    """
+    intrinsics_inv = np.linalg.inv(intrinsics)
+    non_zero_mask = depth > 0
+    final_instance_mask = np.logical_and(instance_mask, non_zero_mask)
+
+    idxs = np.where(final_instance_mask)
+    grid = np.array([idxs[1], idxs[0]])
+
+    length = grid.shape[1]
+    ones = np.ones([1, length])
+    uv_grid = np.concatenate((grid, ones), axis=0)  # [3, num_pixel]
+
+    xyz = intrinsics_inv @ uv_grid  # [3, num_pixsel]
+    xyz = np.transpose(xyz)  # [num_pixel, 3]
+
+    z = depth[idxs[0], idxs[1]]
+
+    pts = xyz * z[:, np.newaxis] / xyz[:, -1:]
+    if NOCS_convention:
+        pts[:, 1] = -pts[:, 1]
+        pts[:, 2] = -pts[:, 2]
+    return pts, idxs
+
+def backproject_with_color(depth, color, intrinsic, mask, NOCS_convention= False):
+    "backproject depth to 3d points and get color"
+    pts, pts_idx = backproject(depth, intrinsic, mask, NOCS_convention=False)
+    color = (color / 255.0).astype(np.float32)
+    colors = color[pts_idx[0], pts_idx[1]]
+    return pts, colors
+
+def visualize_points(points, colors=None):
+    "take points and return open3d pcd"
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+    if colors is not None:
+        pcd.colors = o3d.utility.Vector3dVector(colors)
+    return pcd

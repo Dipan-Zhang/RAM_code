@@ -21,6 +21,7 @@ import random
 import open3d as o3d
 import pickle
 import tqdm
+from run_realworld.utils import visualize_points, backproject
 
 def get_time():
     import datetime
@@ -92,7 +93,16 @@ def main(args):
                                         data_source=data_source,
                                         )
             # input_dir = f"run_realworld/real_data/input/{obj}"
-            pcd = o3d.io.read_point_cloud(os.path.join(dataset_path_cam, "pcd.ply"))
+            # pcd = o3d.io.read_point_cloud(os.path.join(dataset_path_cam, "pcd.ply"))
+
+            #####################33
+            data_dict = np.load(os.path.join(dataset_path_cam, "task_data.npz"), allow_pickle=True)
+            camK = data_dict['camera_intrinsic']
+            depth = data_dict['depth']
+            pts, _ = backproject(depth, camK, depth>0, False)
+            pcd = visualize_points(pts)
+            #######################3
+            
             rgb = Image.open(os.path.join(dataset_path_cam, "rgb.png"))
 
             tgt_img_PIL = rgb
