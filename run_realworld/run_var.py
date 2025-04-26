@@ -31,13 +31,7 @@ def get_time():
 def backup(args, cfgs):
     shutil.copyfile(f"run_realworld/{args.config}", f"{cfgs['SAVE_ROOT']}/config.yaml")
 
-def underscore_string_to_camel_case(string):
-    """
-    Convert a string from underscore format to camel case format.
-    For example, 'my_variable_name' becomes 'MyVariableName'.
-    """
-    components = string.split('_')
-    return ''.join(x.title() for x in components) 
+
 
 def reverse_object_action(task_name):
     "bottle_open -> open_bottle"
@@ -54,7 +48,7 @@ def main(args):
     cfgs = read_yaml_config(f"run_realworld/{args.config}")
     torch.set_printoptions(precision=4, sci_mode=False)
     task_name = args.config.split('/')[-1].split('.')[0]
-            
+
     instruction = cfgs['instruction']
     obj = cfgs['obj']
     prompt = cfgs['prompt']
@@ -62,19 +56,20 @@ def main(args):
 
     # save_root = cfgs['SAVE_ROOT']
     SAVE_ROOT = args.save_dir
+    VAR = SAVE_ROOT.split('/')[-1].split('_')[-1]
+    VAR = int(VAR)
+
     cfgs['SAVE_ROOT'] = SAVE_ROOT
-    os.makedirs(SAVE_ROOT, exist_ok=True)
     backup(args, cfgs)
     grounded_dino_model, sam_predictor = prepare_gsam_model(device="cuda")
 
-
     results_all = {}
-    dataset_path = os.path.join(SAVE_ROOT, '..', '..' , 'obs')
+    dataset_path = os.path.join(SAVE_ROOT, '..', '..', '..', 'obs', f'var_{VAR}')
     camera_names = os.listdir(dataset_path)
     for camera_name in camera_names:
         results_per_camera = {}
         dataset_path_cam = os.path.join(dataset_path, camera_name)
-        for trial in tqdm.tqdm(range(args.num_trial), desc=f"{task_name, camera_name}"):
+        for trial in tqdm.tqdm(range(args.num_trial), desc=f"{camera_name}"):
             SAVE_ROOT_TRIAL = os.path.join(SAVE_ROOT, camera_name, f"trial_{trial}")
             cfgs['SAVE_ROOT'] = SAVE_ROOT_TRIAL
             gym = MiniEnv(cfgs, grounded_dino_model, sam_predictor)
@@ -87,15 +82,14 @@ def main(args):
                                         crop=True,
                                         data_source=data_source,
                                         )
-            # BUGFIX -> use the pcd from camera frame
+
             data_dict = np.load(os.path.join(dataset_path_cam, "task_data.npz"), allow_pickle=True)
             camK = data_dict['camera_intrinsic']
             depth = data_dict['depth']
             pts, _ = backproject(depth, camK, depth>0, False)
             pcd = visualize_points(pts)
             
-            rgb = Image.open(os.path.join(dataset_path_cam, "color_000000.png")) # TEMP
-
+            rgb = Image.open(os.path.join(dataset_path_cam, "color_000000.png"))
             tgt_img_PIL = rgb
             tgt_img_PIL.save(f"{SAVE_ROOT_TRIAL}/tgt_img.png")
             rgb = np.array(rgb)
@@ -108,7 +102,6 @@ def main(args):
             tgt_img_PIL = Image.fromarray(tgt_img_masked).convert('RGB')
             tgt_img_PIL.save(f"{SAVE_ROOT_TRIAL}/tgt_img_masked.png")
             
-            ######## src
             ####################### SOURCE DEMONSTRATION ########################
             if not args.retrieve:
                 data_dict = np.load("run_realworld/real_data/demonstration/data.pkl", allow_pickle=True)
