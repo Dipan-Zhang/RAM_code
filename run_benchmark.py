@@ -43,14 +43,12 @@ def underscore_string_to_camel_case(string):
     return ''.join(x.title() for x in components) 
 
 CFGS_DIR = 'run_realworld/configs'
-SAVE_BASE_DIR = '../RLBench/outputs_ablation'
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', type=str, default='all', help='task name')
     parser.add_argument('-n', '--num_trial', type=int, default=5, help='number of trials')
     parser.add_argument('--num_var', type=int, default=0, help='use variation')
-
     args = parser.parse_args()
 
     if args.task == 'all':
@@ -59,18 +57,16 @@ if __name__ == "__main__":
         TASKS = PORTABLE_TASK_LIST
     elif args.task == 'articulate':
         TASKS = ARTICULATE_TASK_LIST
-    # elif args.task == 'drawer':
-    #     TASKS = ['open_drawer', 'close_drawer']
-    # elif args.task == 'dishwasher':
-    #     TASKS = ['open_dishwasher']
-    # elif args.task == 'microwave':
-    #     TASKS = ['open_microwave', 'close_microwave']
     elif args.task == 'rest':
         TASKS = ['open_drawer', 'close_drawer']
     else:
         TASKS = [args.task]
 
     trial_name = f'trial_{get_time()}'
+    if args.num_var==0:
+        SAVE_BASE_DIR = '../RLBench/outputs'
+    else:
+        SAVE_BASE_DIR = '../RLBench/outputs_ablation'
 
     for task in tqdm(TASKS):
         print(f"==================TASKS: {task}========================")
