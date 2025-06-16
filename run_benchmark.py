@@ -29,6 +29,7 @@ ARTICULATE_TASK_LIST=[
 # 'open_washing_machine',
 ]
   
+#################### THIS SCRIPT HAS TO BE RUN IN SLURM because of memory ######################
 def get_time():
     import datetime
     now = datetime.datetime.now()
@@ -57,8 +58,10 @@ if __name__ == "__main__":
         TASKS = PORTABLE_TASK_LIST
     elif args.task == 'articulate':
         TASKS = ARTICULATE_TASK_LIST
-    elif args.task == 'rest':
-        TASKS = ['open_drawer', 'close_drawer']
+    elif args.task == 'flex':
+        TASKS =  ['open_drawer', 'close_microwave']
+    elif args.task == 'res':
+        TASKS =  ['close_laptop', 'down_toilet_seat']
     else:
         TASKS = [args.task]
 
@@ -66,7 +69,7 @@ if __name__ == "__main__":
     if args.num_var==0:
         SAVE_BASE_DIR = '../RLBench/outputs'
     else:
-        SAVE_BASE_DIR = '../RLBench/outputs_ablation'
+        SAVE_BASE_DIR = '../RLBench/outputs_ablation_var'
 
     for task in tqdm(TASKS):
         print(f"==================TASKS: {task}========================")

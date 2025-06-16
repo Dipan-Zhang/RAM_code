@@ -90,9 +90,9 @@ def draw_trajectory(img, points, color='red', marker='o', size=10):
 
 
 grounded_dino_model, sam_predictor = prepare_gsam_model(device='cuda')
-
-img_dir = '/home/stud/zanr/code/RAM_code/assets/data/customize/close_the_slide_cabinet/raw_imgs'
-save_dir = '/home/stud/zanr/code/RAM_code/assets/data/customize/close_the_slide_cabinet/vis'
+dataset_name = 'close_the_laptop'
+img_dir = f'./assets/data/customize/{dataset_name}/raw_imgs'
+save_dir = f'./assets/data/customize/{dataset_name}'
 task_name = img_dir.split('/')[-2]
 obj_name = ' '.join(task_name.split('_')[-2:])
 print(obj_name)
@@ -104,6 +104,10 @@ masks = []
 trajs=[]
 names = []
 img_fns = sorted(os.listdir(img_dir))
+# img_fns = [
+#     'toiletseat2.jpeg',
+#     'toiletseat6.jpeg'
+# ]
 for img_fn in img_fns:
     img_path = os.path.join(img_dir, img_fn)
     img = cv2.imread(img_path, -1)[...,[2,1,0]]  # BGR to RGB
@@ -126,7 +130,7 @@ for img_fn in img_fns:
 
     # get mask
     tgt_masks = inference_one_image(img, grounded_dino_model, sam_predictor,\
-                            box_threshold=0.5, text_threshold=0.35, text_prompt=prompt,\
+                            box_threshold=0.3, text_threshold=0.35, text_prompt=prompt,\
                             device="cuda").cpu().numpy() # you can set point_prompt to traj[0]
     tgt_mask = (tgt_masks[0][0] > 0).astype(np.uint8)
     mask = np.repeat(tgt_masks[0,0][:, :, np.newaxis], 3, axis=2).astype(np.uint8) # align with RAM implementation
@@ -147,10 +151,11 @@ for img_fn in img_fns:
     fig = draw_trajectory(masked_img, trajectory_points)
     
     # Ensure the save directory exists
-    os.makedirs(save_dir, exist_ok=True)
+    img_save_dir = os.path.join(save_dir, 'vis')
+    os.makedirs(img_save_dir, exist_ok=True)
     
     # Save with higher DPI and quality settings
-    fig_save_fn = os.path.join(save_dir, f"trajectory_{img_fn}")
+    fig_save_fn = os.path.join(img_save_dir, f"trajectory_{img_fn}")
     fig.savefig(fig_save_fn, dpi=300, bbox_inches='tight', pad_inches=0, 
                 format='png', transparent=False)
     plt.close(fig)  # Close the figure to free memory
