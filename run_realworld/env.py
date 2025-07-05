@@ -248,6 +248,7 @@ class MiniEnv():
         post_grasp_dir = best_dir_3d.tolist()
         
         ret_dict = {
+            "contact_point": position,
             "grasp_array": grasp_array,
             "post_grasp_dir": post_grasp_dir
         }

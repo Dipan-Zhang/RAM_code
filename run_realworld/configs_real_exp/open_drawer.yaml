@@ -25,7 +25,7 @@ config: "vision/GroundedSAM/GroundingDINO/groundingdino/config/GroundingDINO_Swi
 gsnet:
   save_files: False
   dataset_root: ""
-  checkpoint_path: assets/ckpts/minkuresunet_kinect.tar
+  checkpoint_path: assets/ckpts/minkuresunet_realsense.tar
   dump_dir: ./logs/
   seed_feat_dim: 512
   camera: kinect
