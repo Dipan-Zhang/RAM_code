@@ -2,7 +2,8 @@ SAVE_RENDER: True
 INFERENCE_GSAM: True
 USE_GSNET: True
 # SAVE_ROOT: "run_realworld/gym_outputs/drawer_open"
-DATA_SOURCE: "droid" # this has to be manually control 
+DATA_SOURCE: "acTron" # this has to be manually control 
+
 
 # language
 instruction: "close the drawer"

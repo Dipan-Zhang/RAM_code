@@ -1,22 +1,22 @@
 SAVE_RENDER: True
 INFERENCE_GSAM: True
 USE_GSNET: True
-# SAVE_ROOT: "run_realworld/gym_outputs/bottle_pick_up"
-DATA_SOURCE: "acTron" # this has to be manually control l 
+# SAVE_ROOT: "run_realworld/gym_outputs/microwave_open"
+DATA_SOURCE: "droid" 
 
 # language
-instruction: "pick up the bottle"
-obj: "bottle"
-prompt: "a photo of a bottle"
+instruction: "open the microwave"
+obj: "microwave"
+prompt: "a photo of a microwave"
 
 # cam
-cam_w: 512
-cam_h: 512
+cam_w: 1280
+cam_h: 720
 
 # GroundedSAM
 box_threshold: 0.3
 text_threshold: 0.25
-text_prompt:  "bottle"
+text_prompt:  "microwave"
 device: "cuda"
 sam_version: "vit_h"
 sam_checkpoint: "assets/ckpts/sam_vit_h_4b8939.pth"
