@@ -19,6 +19,41 @@ import traceback
 from matplotlib import pyplot as plt
 import ipdb; 
 
+def backproject_pixel_to_point(pixel, depth_img, intrinsic):
+    """Backproject 2D pixels and depth to 3D points in camera frame
+    Args:
+        pixel: np.ndarray in shape [2,] or [bs, 2] containing (u, v)/ (x, y) pixel coordinates
+        depth_img: np.ndarray in shape [H,W] containing depth values
+        intrinsic: np.ndarray in shape [3,3] containing camera intrinsic matrix
+    Returns:
+        points_3d: np.ndarray in shape [N,3] containing (x,y,z) 3D points
+    """
+    # Convert inputs to torch tensors if needed
+    if isinstance(pixel, np.ndarray):
+        pixel = torch.from_numpy(pixel).float()
+    if isinstance(depth_img, np.ndarray):
+        depth_img = torch.from_numpy(depth_img).float()
+    if isinstance(intrinsic, np.ndarray):
+        intrinsic = torch.from_numpy(intrinsic).float()
+
+    # Handle single pixel vs batch
+    if len(pixel.shape) == 1:
+        pixel = pixel.unsqueeze(0) # [1,2]
+
+    # Get depth values for pixels
+    depth_values = depth_img[pixel[:,1].long(), pixel[:,0].long()] # [N]
+
+    # Construct homogeneous pixel coordinates 
+    pixels_homo = torch.cat([pixel, torch.ones_like(pixel[:,0:1])], dim=1) # [N,3]
+
+    # Get normalized image coordinates by multiplying with inverse intrinsics
+    points_norm = torch.matmul(torch.inverse(intrinsic), pixels_homo.t()).t() # [N,3]
+
+    # Scale by depth to get 3D points
+    points_3d = points_norm * depth_values.unsqueeze(1)
+
+    return points_3d
+
 class MiniEnv():
     def __init__(
             self, 
@@ -31,26 +66,26 @@ class MiniEnv():
         self.cam_w = cfgs['cam_w']
         self.cam_h = cfgs['cam_h']
         
-        if grounded_dino_model is not None and sam_predictor is not None:
-            self.grounded_dino_model = grounded_dino_model
-            self.sam_predictor = sam_predictor
-            self.box_threshold = cfgs['box_threshold']
-            self.text_threshold = cfgs['text_threshold']
-        elif self.cfgs["INFERENCE_GSAM"]:
-            self.prepare_groundedsam()
+        # if grounded_dino_model is not None and sam_predictor is not None:
+        #     self.grounded_dino_model = grounded_dino_model
+        #     self.sam_predictor = sam_predictor
+        #     self.box_threshold = cfgs['box_threshold']
+        #     self.text_threshold = cfgs['text_threshold']
+        # elif self.cfgs["INFERENCE_GSAM"]:
+        #     self.prepare_groundedsam()
         if self.cfgs["USE_GSNET"]:
             self.prepare_gsnet()
             
-    def prepare_groundedsam(self):
-        self.box_threshold = self.cfgs['box_threshold']
-        self.text_threshold = self.cfgs['text_threshold']
-        sam_version = "vit_h"
-        sam_checkpoint = "assets/ckpts/sam_vit_h_4b8939.pth"
-        grounded_checkpoint = "assets/ckpts/groundingdino_swint_ogc.pth"
-        config = "vision/GroundedSAM/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
+    # def prepare_groundedsam(self):
+    #     self.box_threshold = self.cfgs['box_threshold']
+    #     self.text_threshold = self.cfgs['text_threshold']
+    #     sam_version = self.cfgs['sam_version']
+    #     sam_checkpoint = self.cfgs['sam_checkpoint']
+    #     grounded_checkpoint = "assets/ckpts/groundingdino_swint_ogc.pth"
+    #     config = "vision/GroundedSAM/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
 
-        self.grounded_dino_model, self.sam_predictor = prepare_GroundedSAM_for_inference(sam_version=sam_version, sam_checkpoint=sam_checkpoint,
-                grounded_checkpoint=grounded_checkpoint, config=config, device=self.device)
+    #     self.grounded_dino_model, self.sam_predictor = prepare_GroundedSAM_for_inference(sam_version=sam_version, sam_checkpoint=sam_checkpoint,
+    #             grounded_checkpoint=grounded_checkpoint, config=config, device=self.device)
 
     def prepare_gsnet(self):
         self.gsnet = GSNet(self.cfgs["gsnet"])
@@ -128,12 +163,17 @@ class MiniEnv():
         return gg
 
     ### affordance
-    def lift_affordance(self, rgb, pcd, pixel, dir):
+    def lift_affordance(self, rgb, pcd, pixel, dir, depth, intr):
         post_contact_dirs_2d, post_contact_dirs_3d = None, None
         partial_points = np.array(pcd.points)
         partial_colors = np.array(pcd.colors)
-        position = partial_points[pixel[1]*self.cam_w + pixel[0]] # contact point
-        
+        # breakpoint()
+        # position = partial_points[pixel[1]*self.cam_w + pixel[0]] # contact point
+        position = backproject_pixel_to_point(
+                np.array(pixel), 
+                depth,
+                intr)[0].cpu().numpy()
+
         # visualization
         # ds_points, _, _ = get_downsampled_pc(partial_points, None, 20000)
         ds_points, _, _ = crop_points(position, partial_points, thres=0.5)

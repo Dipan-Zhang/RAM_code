@@ -19,6 +19,7 @@ from tqdm import tqdm
 import shutil
 import random
 import open3d as o3d
+import gc
 
 def backup(args, cfgs):
     shutil.copyfile(f"run_realworld/{args.config}", f"{cfgs['SAVE_ROOT']}/config.yaml")
@@ -42,25 +43,33 @@ def main(args):
     save_root = cfgs['SAVE_ROOT']
     
     grounded_dino_model, sam_predictor = prepare_gsam_model(device="cuda")
-    gym = MiniEnv(cfgs, grounded_dino_model, sam_predictor)
+    gym = MiniEnv(cfgs, None, None)
     
-    subset_retrieve_pipeline = SubsetRetrievePipeline(
-        subset_dir="assets/data",
-        save_root=save_root,
-        lang_mode='clip',
-        topk=5, 
-        crop=True,
-        data_source=data_source,
-    )
+    if args.retrieve:
+        subset_retrieve_pipeline = SubsetRetrievePipeline(
+            subset_dir="assets/data",
+            save_root=save_root,
+            lang_mode='clip',
+            topk=5, 
+            crop=True,
+            data_source=data_source,
+        )
     
-    pcd = o3d.io.read_point_cloud(f"{args.data_dir}/scene_pcd.ply")
-    rgb = Image.open(f"{args.data_dir}/scene.png")
-        
-    tgt_img_PIL = rgb
+    raw_data_dict = np.load(f"{args.data_dir}/raw_input.npz", allow_pickle=True)
+    rgb = raw_data_dict['color']
+    depth = raw_data_dict['depth']
+    intr = raw_data_dict['intr']
+    pts = raw_data_dict['pts_undis']
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(pts)
+    pcd.colors = o3d.utility.Vector3dVector(np.ones((pts.shape[0], 3)))
+    o3d.io.write_point_cloud(f"{save_root}/scene_pcd.ply", pcd)
+
+    tgt_img_PIL = Image.fromarray(rgb)
     tgt_img_PIL.save(f"{save_root}/tgt_img.png")
-    # rgb = np.array(rgb)
-    
+
     tgt_masks = inference_one_image(np.array(tgt_img_PIL), grounded_dino_model, sam_predictor, box_threshold=cfgs['box_threshold'], text_threshold=cfgs['text_threshold'], text_prompt=obj, device="cuda").cpu().numpy() # you can set point_prompt to traj[0]
+
     tgt_mask = np.repeat(tgt_masks[0,0][:, :, np.newaxis], 3, axis=2).astype(np.uint8)
     # if mask is false, make it white
     tgt_img_masked = np.array(tgt_img_PIL) * tgt_mask + 255 * (1 - tgt_mask)
@@ -68,31 +77,33 @@ def main(args):
     tgt_img_PIL = Image.fromarray(tgt_img_masked).convert('RGB') # HW3
     tgt_img_PIL.save(f"{save_root}/tgt_img_masked.png")
     
-    ######## src
-    ####################### SOURCE DEMONSTRATION ########################
+    # ######## src
+    # ####################### SOURCE DEMONSTRATION ########################
     if not args.retrieve:
-        data_dict = np.load("run_realworld/real_data/demonstration/data.pkl", allow_pickle=True)
-        traj = data_dict['traj']
-        src_img_np = data_dict['masked_img']
+        retrieve_data_dict = np.load(f"{args.data_dir}/src_data.npz", allow_pickle=True)
+        src_pos_list = retrieve_data_dict['src_pos_list']
+        src_img_np = retrieve_data_dict['src_img']
         src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
-        src_img_PIL.save(f"{save_root}/src_img.png")
     else:
         # use retrieval to get src_path (or src image) and src trajectory in 2d space
         _, top1_retrieved_data_dict = subset_retrieve_pipeline.retrieve(instruction, np.array(tgt_img_PIL))
         traj = top1_retrieved_data_dict['traj']
         src_img_np = top1_retrieved_data_dict['masked_img']
         src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
+
+        # scale cropped_traj to IMG_SIZE
+        src_pos_list = []
+        for xy in traj:
+            src_pos_list.append((xy[0] * IMG_SIZE / src_img_PIL.size[0], xy[1] * IMG_SIZE / src_img_PIL.size[1]))
+        
+        # save retrieved src pos list and src img into a npz file
+        np.savez(f"{save_root}/src_data.npz", src_pos_list=src_pos_list, src_img=src_img_np)
+        src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
     ####################### SOURCE DEMONSTRATION ########################
 
-    # scale cropped_traj to IMG_SIZE
-    src_pos_list = []
-    for xy in traj:
-        src_pos_list.append((xy[0] * IMG_SIZE / src_img_PIL.size[0], xy[1] * IMG_SIZE / src_img_PIL.size[1]))
-    
-    # save retrieved src pos list and src img into a npz file
-    np.savez(f"{save_root}/src_data.npz", src_pos_list=src_pos_list, src_img=src_img_np)
-    # src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
-    
+    del sam_predictor, grounded_dino_model
+    gc.collect()
+    torch.cuda.empty_cache()
 
     while True:
         try:
@@ -103,9 +114,11 @@ def main(args):
             print('[ERROR] in transfer_affordance:', transfer_e)
 
     # contact point + post-contact direction
-    ret_dict = gym.lift_affordance(rgb, pcd, contact_point, post_contact_dir)
+    ret_dict = gym.lift_affordance(rgb, pcd, contact_point, post_contact_dir, depth, intr)
     
     print("3D Affordance:\n", ret_dict)
+    # save ret_dict into a npz file
+    np.savez(f"{save_root}/ret_dict.npz", **ret_dict)
     
     print("====== DONE ======")
         
@@ -121,6 +134,5 @@ if __name__ == "__main__":
     
     main(args)
 
-    # python run_realworld/run_origin.py --config configs_real_exp/open_microwave.yaml --data_dir run_realworld/real_data/real_exp/open_microwave --save_dir run_realworld/gym_outputs/open_microwave --retrieve
-
-    # python run_realworld/run_origin.py --config configs_real_exp/close_microwave.yaml --data_dir run_realworld/real_data/real_exp/close_microwave --save_dir run_realworld/gym_outputs/close_microwave --retrieve
+    # python run_realworld/run_origin.py --config configs_real_exp/open_microwave.yaml --data_dir run_realworld/real_data/real_exp/open_microwave --save_dir run_realworld/gym_outputs/open_microwave 
+    # python run_realworld/run_origin.py --config configs_real_exp/close_microwave.yaml --data_dir run_realworld/real_data/real_exp/close_microwave --save_dir run_realworld/gym_outputs/close_microwave
