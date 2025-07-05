@@ -85,7 +85,7 @@ def main(args):
     # ######## src
     # ####################### SOURCE DEMONSTRATION ########################
     if not args.retrieve:
-        retrieve_data_dict = np.load(f"{args.data_dir}/src_data.npz", allow_pickle=True)
+        retrieve_data_dict = np.load(f"{args.data_dir}/../src_data.npz", allow_pickle=True)
         src_pos_list = retrieve_data_dict['src_pos_list']
         src_img_np = retrieve_data_dict['src_img']
         src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
@@ -102,8 +102,9 @@ def main(args):
             src_pos_list.append((xy[0] * IMG_SIZE / src_img_PIL.size[0], xy[1] * IMG_SIZE / src_img_PIL.size[1]))
         
         # save retrieved src pos list and src img into a npz file
-        np.savez(f"{save_root}/src_data.npz", src_pos_list=src_pos_list, src_img=src_img_np)
+        np.savez(f"{save_root}/../src_data.npz", src_pos_list=src_pos_list, src_img=src_img_np)
         src_img_PIL = Image.fromarray(src_img_np).convert('RGB')
+        exit()
     ####################### SOURCE DEMONSTRATION ########################
 
     del sam_predictor, grounded_dino_model
